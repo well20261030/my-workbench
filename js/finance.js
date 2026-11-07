@@ -1,6 +1,7 @@
 /* ============================
  * finance.js — 记账模块
  * 数据：{ records: [{id,date,type,amount,category,note}] }
+ * 记录日期可选（补记昨天/前天）
  * ============================ */
 (function (global) {
   const KEY = 'finance';
@@ -27,6 +28,8 @@
   };
   const CAT_MAP = {};
   CATS.out.concat(CATS.in).forEach((c) => { CAT_MAP[c.key] = c; });
+
+  let selDate = Util.today();
 
   function load() {
     let d = Storage.get(KEY);
@@ -77,6 +80,10 @@
     const d = load();
     const s = summary(d);
     const pie = outByCategory(d);
+    const date = selDate;
+    const dayList = d.records.filter((r) => r.date === date);
+    const dayOut = dayList.filter((r) => r.type === 'out').reduce((a, r) => a + r.amount, 0);
+    const dayIn  = dayList.filter((r) => r.type === 'in').reduce((a, r) => a + r.amount, 0);
 
     return `
       <div class="card">
@@ -89,6 +96,8 @@
           <div class="fs-cell out"><div class="l">支出</div><div class="v">-${s.outTotal.toFixed(0)}</div></div>
           <div class="fs-cell net"><div class="l">结余</div><div class="v">${s.net >= 0 ? '+' : ''}${s.net.toFixed(0)}</div></div>
         </div>
+
+        ${Util.dateBar('finDate', date)}
 
         <div class="type-toggle">
           <button class="active out" data-type="out">支出</button>
@@ -107,7 +116,17 @@
         <div class="field">
           <input class="input" id="finNote" placeholder="备注(可选)" maxlength="40" />
         </div>
-        <button class="btn btn-finance btn-block" id="finAddBtn">＋ 记一笔</button>
+        <button class="btn btn-finance btn-block" id="finAddBtn">＋ 记到${Util.dateLabel(date)}</button>
+
+        ${dayList.length > 0 ? `
+          <div style="font-size:12px;color:var(--text-2);margin:14px 0 6px">
+            ${Util.dateLabel(date)}的记录
+            <span style="color:var(--text-3)">
+              ${dayIn ? ` · 收 ${dayIn.toFixed(0)}` : ''}${dayOut ? ` · 支 ${dayOut.toFixed(0)}` : ''}
+            </span>
+          </div>
+          ${dayList.map((r) => renderItem(r)).join('')}
+        ` : `<div class="muted" style="margin-top:12px">${Util.dateLabel(date)}还没有记录</div>`}
       </div>
 
       <div class="card">
@@ -119,7 +138,7 @@
       </div>
 
       <div class="card">
-        <div class="card-title"><h3>${iconHTML('book', 16, '#7A5A48')} 流水明细</h3></div>
+        <div class="card-title"><h3>${iconHTML('book', 16, '#7A5A48')} 流水明细</h3><span class="more">最近 20 天</span></div>
         ${d.records.length === 0
           ? `<div class="empty"><div class="emo">${iconHTML('coin', 32, '#A09A92')}</div>还没有记录，记一笔吧</div>`
           : renderGrouped(d.records)
@@ -157,8 +176,8 @@
     records.forEach((r) => {
       (groups[r.date] = groups[r.date] || []).push(r);
     });
-    return Object.keys(groups).slice(0, 20).map((date) => {
-      const d = new Date(date);
+    return Object.keys(groups).sort().reverse().slice(0, 20).map((date) => {
+      const d = new Date(date + 'T00:00:00');
       const inSum  = (groups[date] || []).filter((r) => r.type === 'in').reduce((s, r) => s + r.amount, 0);
       const outSum = (groups[date] || []).filter((r) => r.type === 'out').reduce((s, r) => s + r.amount, 0);
       return `
@@ -177,6 +196,11 @@
 
   function bind() {
     const pane = document.getElementById('pane-finance');
+    if (!pane) return;
+
+    // 日期切换
+    Util.bindDateBar(pane, 'finDate', (v) => { selDate = v; refresh(); });
+
     let curType = 'out';
     let curCat  = CATS.out[0].key;
 
@@ -213,20 +237,21 @@
     document.getElementById('finAddBtn').addEventListener('click', () => {
       const amt = document.getElementById('finAmt').value;
       if (!amt || amt <= 0) { Toast('请输入金额'); return; }
-      add({ type: curType, amount: amt, category: curCat, note: document.getElementById('finNote').value });
+      add({ type: curType, amount: amt, category: curCat, note: document.getElementById('finNote').value, date: selDate });
       document.getElementById('finAmt').value = '';
       document.getElementById('finNote').value = '';
-      Toast('已记账'); refresh();
+      Toast(`已记到${Util.dateLabel(selDate)}`); refresh();
     });
 
-    // 删除
-    pane.addEventListener('click', (e) => {
+    // 删除（onclick 覆盖式绑定，避免刷新累积）
+    pane.onclick = (e) => {
       const delBtn = e.target.closest('[data-act="del"]');
       if (!delBtn) return;
       const item = delBtn.closest('[data-id]');
       if (!item) return;
       if (confirm('删除这笔记录？')) { del(item.dataset.id); refresh(); }
-    });
+    };
+
   }
 
   function drawChart() {
@@ -271,7 +296,7 @@
     }
     try { drawChart(); } catch (e) { console.error('[finance.js] chart error:', e); }
   }
-  function init() { refresh(); }
+  function init() { selDate = Util.today(); refresh(); }
   function onShow() { drawChart(); }
   global.Finance = { init, refresh, onShow };
 })(window);

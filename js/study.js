@@ -1,10 +1,13 @@
 /* ============================
  * study.js — 学习打卡模块
  * 数据：{ tasks: [{id,name,doneDates:[yyyy-mm-dd]}], records: [{id,date,duration,note}] }
+ * 支持选择日期补记（不能选未来）
  * ============================ */
 (function (global) {
   const KEY = 'study';
   const DEFAULT_TASKS = ['背单词 20 个', '阅读 30 分钟', '写作 / 复盘'];
+
+  let selDate = Util.today();
 
   function load() {
     let d = Storage.get(KEY);
@@ -18,22 +21,22 @@
     // 兼容
     d.tasks = d.tasks || [];
     d.records = d.records || [];
+    d.tasks.forEach((t) => { t.doneDates = t.doneDates || []; });
     return d;
   }
   function save(d) { Storage.set(KEY, d); }
 
-  function isDoneToday(task) {
-    return task.doneDates && task.doneDates.includes(Util.today());
+  function isDone(task, date) {
+    return (task.doneDates || []).includes(date);
   }
 
-  function toggleToday(taskId) {
+  function toggleTask(taskId, date) {
     const d = load();
     const t = d.tasks.find((x) => x.id === taskId);
     if (!t) return;
-    const today = Util.today();
-    const i = t.doneDates.indexOf(today);
+    const i = t.doneDates.indexOf(date);
     if (i >= 0) t.doneDates.splice(i, 1);
-    else t.doneDates.push(today);
+    else t.doneDates.push(date);
     save(d);
   }
 
@@ -50,34 +53,41 @@
     save(d);
   }
 
-  function addRecord(duration, note) {
+  function addRecord(duration, note, date) {
     const d = load();
-    d.records.unshift({ id: Storage.uid(), date: Util.today(), duration: Number(duration) || 0, note: note || '' });
+    d.records.unshift({
+      id: Storage.uid(),
+      date: date || Util.today(),
+      duration: Number(duration) || 0,
+      note: note || '',
+    });
     save(d);
   }
 
   /* -------- 渲染 -------- */
   function render() {
     const d = load();
-    const today = Util.today();
+    const date = selDate;
+    const isToday = Util.isToday(date);
+    const dayLabel = isToday ? '今日' : Util.dateLabel(date);
+
     const allDoneDates = Array.from(new Set(d.tasks.flatMap((t) => t.doneDates))).sort();
     const streak = Util.streak(allDoneDates);
     const totalDays = allDoneDates.length;
 
-    // 今日学习时长（求和当日 records.duration）
-    const todayMin = d.records.filter((r) => r.date === today).reduce((s, r) => s + r.duration, 0);
-
-    // 近 30 天每日学习时长
-    const days = Util.rangeDays(30);
-    const minutesByDate = {};
-    d.records.forEach((r) => { minutesByDate[r.date] = (minutesByDate[r.date] || 0) + r.duration; });
+    // 所选日期的学习时长
+    const dayMin = d.records.filter((r) => r.date === date).reduce((s, r) => s + r.duration, 0);
+    const dayDoneCount = d.tasks.filter((t) => isDone(t, date)).length;
 
     return `
       <div class="card">
         <div class="card-title">
-          <h3>${iconHTML('book', 16, '#8B6161')} 今日学习</h3>
+          <h3>${iconHTML('book', 16, '#8B6161')} ${dayLabel}学习</h3>
           <span class="tag tag-study">学习打卡</span>
         </div>
+
+        ${Util.dateBar('studyDate', date)}
+
         <div class="streak-box">
           <div class="streak-cell">
             <div class="v">${streak}</div>
@@ -88,18 +98,21 @@
             <div class="l">累计天数</div>
           </div>
           <div class="streak-cell">
-            <div class="v">${todayMin}<span style="font-size:11px;color:var(--text-3);font-weight:500"> 分</span></div>
-            <div class="l">今日学习</div>
+            <div class="v">${dayMin}<span style="font-size:11px;color:var(--text-3);font-weight:500"> 分</span></div>
+            <div class="l">${isToday ? '今日学习' : '当日学习'}</div>
           </div>
         </div>
 
-        <div style="font-size:12px;color:var(--text-2);margin:14px 0 6px">今日任务</div>
+        <div style="font-size:12px;color:var(--text-2);margin:14px 0 6px">
+          ${isToday ? '今日任务' : `${Util.dateLabel(date)}的任务`}
+          ${d.tasks.length ? `<span style="color:var(--text-3)"> · 完成 ${dayDoneCount}/${d.tasks.length}</span>` : ''}
+        </div>
         <div id="studyTaskList">
           ${d.tasks.length === 0
             ? `<div class="empty"><div class="emo">${iconHTML('pencil', 32, '#A09A92')}</div>还没有任务，添加一个吧</div>`
             : d.tasks.map((t) => `
-              <div class="task-item ${isDoneToday(t) ? 'done' : ''}" data-id="${t.id}">
-                <div class="check" data-act="toggle">${isDoneToday(t) ? '✓' : ''}</div>
+              <div class="task-item ${isDone(t, date) ? 'done' : ''}" data-id="${t.id}">
+                <div class="check" data-act="toggle">${isDone(t, date) ? '✓' : ''}</div>
                 <div class="task-name">${Util.esc(t.name)}</div>
                 <button class="task-del" data-act="del" aria-label="删除">×</button>
               </div>
@@ -114,16 +127,19 @@
       </div>
 
       <div class="card">
-        <div class="card-title"><h3>${iconHTML('clock', 16, '#8B6161')} 学习记录</h3></div>
+        <div class="card-title">
+          <h3>${iconHTML('clock', 16, '#8B6161')} 学习记录</h3>
+          <span class="more">记到 ${Util.dateLabel(date)}</span>
+        </div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
-          <input class="input" id="studyMin" type="number" min="1" max="600" placeholder="时长(分钟)" style="flex:1;min-width:120px" />
-          <input class="input" id="studyNote" placeholder="学了啥？(可选)" style="flex:1.4;min-width:140px" maxlength="40" />
+          <input class="input" id="studyMin" type="number" min="1" max="600" placeholder="时长(分钟)" style="flex:1;min-width:110px" />
+          <input class="input" id="studyNote" placeholder="学了啥？(可选)" style="flex:1.4;min-width:130px" maxlength="40" />
           <button class="btn btn-study btn-sm" id="studyLogBtn">记录</button>
         </div>
         <div style="font-size:12px;color:var(--text-2);margin:14px 0 6px">最近记录</div>
         ${d.records.length === 0
           ? `<div class="empty"><div class="emo">${iconHTML('clock', 32, '#A09A92')}</div>暂无记录</div>`
-          : d.records.slice(0, 8).map((r) => `
+          : d.records.slice(0, 12).map((r) => `
             <div class="record-item">
               <div class="ri-icon" style="background:var(--c-study-soft)">${iconHTML('book', 18, '#8B6161')}</div>
               <div class="ri-main">
@@ -143,6 +159,12 @@
   }
 
   function bind() {
+    const pane = document.getElementById('pane-study');
+    if (!pane) return;
+
+    // 日期切换
+    Util.bindDateBar(pane, 'studyDate', (v) => { selDate = v; refresh(); });
+
     // 任务勾选 / 删除
     const list = document.getElementById('studyTaskList');
     if (list) {
@@ -153,7 +175,7 @@
         if (e.target.closest('[data-act="del"]')) {
           if (confirm('删除这个任务？')) { delTask(id); refresh(); }
         } else if (e.target.closest('[data-act="toggle"]')) {
-          toggleToday(id); refresh();
+          toggleTask(id, selDate); refresh();
         }
       });
     }
@@ -176,10 +198,10 @@
         const min = document.getElementById('studyMin').value;
         const note = document.getElementById('studyNote').value;
         if (!min || min <= 0) { Toast('请输入时长'); return; }
-        addRecord(min, note);
+        addRecord(min, note, selDate);
         document.getElementById('studyMin').value = '';
         document.getElementById('studyNote').value = '';
-        Toast('已记录'); refresh();
+        Toast(`已记录到${Util.dateLabel(selDate)}`); refresh();
       });
     }
   }
@@ -237,7 +259,7 @@
     try { drawChart(); } catch (e) { console.error('[study.js] chart error:', e); }
   }
 
-  function init() { refresh(); }
+  function init() { selDate = Util.today(); refresh(); }
   function onShow() { drawChart(); }
 
   global.Study = { init, refresh, onShow };

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#F5F0EA" />
+  <title>我的工作台 · Daily Workstation</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <!-- Chart.js：优先加载本地，本地失败再走 CDN -->
+  <script src="js/lib/chart.umd.min.js"></script>
+  <script>
+    if (typeof Chart === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>');
+    }
+  </script>
+</head>
+<body>
+  <!-- 顶部 Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="brand">我的工作台</div>
+      <div class="brand-sub">Daily Workstation · 专注 · 灵感 · 成长</div>
+    </div>
+    <div class="header-right" id="headerDate">--</div>
+  </header>
+
+  <!-- 内容区：5 个 Tab pane -->
+  <main class="app-main">
+    <!-- 首页 -->
+    <section class="tab-pane active" id="pane-home" data-tab="home"></section>
+    <!-- 学习 -->
+    <section class="tab-pane" id="pane-study" data-tab="study"></section>
+    <!-- 运动 -->
+    <section class="tab-pane" id="pane-exercise" data-tab="exercise"></section>
+    <!-- 护肤 -->
+    <section class="tab-pane" id="pane-skincare" data-tab="skincare"></section>
+    <!-- 记账 -->
+    <section class="tab-pane" id="pane-finance" data-tab="finance"></section>
+  </main>
+
+  <!-- 底部 Tab 导航 -->
+  <nav class="bottom-nav" id="bottomNav">
+    <button class="nav-item active" data-target="home">
+      <span class="nav-icon" data-icon="home"></span>
+      <span class="nav-label">首页</span>
+    </button>
+    <button class="nav-item" data-target="study">
+      <span class="nav-icon" data-icon="book"></span>
+      <span class="nav-label">学习</span>
+    </button>
+    <button class="nav-item" data-target="exercise">
+      <span class="nav-icon" data-icon="dumbbell"></span>
+      <span class="nav-label">运动</span>
+    </button>
+    <button class="nav-item" data-target="skincare">
+      <span class="nav-icon" data-icon="drop"></span>
+      <span class="nav-label">护肤</span>
+    </button>
+    <button class="nav-item" data-target="finance">
+      <span class="nav-icon" data-icon="wallet"></span>
+      <span class="nav-label">记账</span>
+    </button>
+  </nav>
+
+  <!-- 模块脚本 -->
+  <script src="js/icons.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/study.js"></script>
+  <script src="js/exercise.js"></script>
+  <script src="js/skincare.js"></script>
+  <script src="js/finance.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

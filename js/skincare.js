@@ -1,38 +1,102 @@
 /* ============================
  * skincare.js — 护肤模块
- * 数据：{ steps: {morning:[...], night:[...]}, products:[{id,name,total,used,unit}],
- *         logs: { 'yyyy-mm-dd': { morning:[stepName,...], night:[...] } } }
+ * 数据：{ v:2,
+ *         steps: { morning:[{id,name}], night:[{id,name}] },
+ *         products: [{id,name,total,used,unit}],
+ *         logs: { 'yyyy-mm-dd': { morning:[stepId], night:[stepId] } } }
+ * 步骤可自定义增删改，记录日期可选
  * ============================ */
 (function (global) {
   const KEY = 'skincare';
   const DEFAULT_MORNING = ['洁面', '化妆水', '精华', '乳液', '防晒'];
   const DEFAULT_NIGHT   = ['卸妆', '洁面', '化妆水', '精华', '面霜'];
 
+  let selDate = Util.today();
+  let manageOpen = false;
+
+  function makeSteps(arr) {
+    return arr.map((name) => ({ id: Storage.uid(), name: name }));
+  }
+
+  function save(d) { Storage.set(KEY, d); }
+
+  /** 老数据（步骤是字符串）迁移成 {id,name}，日志里的名字也转成 id */
+  function migrate(d) {
+    if (d.v === 2) return d;
+    const oldSteps = d.steps || {};
+    const newSteps = { morning: [], night: [] };
+    ['morning', 'night'].forEach((p) => {
+      const list = Array.isArray(oldSteps[p]) ? oldSteps[p] : [];
+      newSteps[p] = list.map((s) => {
+        if (s && typeof s === 'object') return { id: s.id || Storage.uid(), name: s.name || '' };
+        return { id: Storage.uid(), name: String(s) };
+      });
+    });
+
+    const logs = d.logs || {};
+    Object.keys(logs).forEach((date) => {
+      const lg = logs[date] || {};
+      ['morning', 'night'].forEach((p) => {
+        const arr = Array.isArray(lg[p]) ? lg[p] : [];
+        const list = newSteps[p];
+        lg[p] = arr.map((x) => {
+          if (list.some((s) => s.id === x)) return x;
+          const m = list.find((s) => s.name === x);
+          return m ? m.id : null;
+        }).filter(Boolean);
+      });
+      logs[date] = lg;
+    });
+
+    d.steps = newSteps;
+    d.logs = logs;
+    d.v = 2;
+    save(d);
+    return d;
+  }
+
   function load() {
     let d = Storage.get(KEY);
     if (!d) {
       d = {
-        steps: { morning: [...DEFAULT_MORNING], night: [...DEFAULT_NIGHT] },
+        v: 2,
+        steps: { morning: makeSteps(DEFAULT_MORNING), night: makeSteps(DEFAULT_NIGHT) },
         products: [],
         logs: {},
       };
-      Storage.set(KEY, d);
+      save(d);
+      return d;
     }
     d.steps = d.steps || { morning: [], night: [] };
     d.products = d.products || [];
     d.logs = d.logs || {};
-    return d;
+    return migrate(d);
   }
-  function save(d) { Storage.set(KEY, d); }
 
-  function toggleStep(period, step) {
+  function toggleStep(period, stepId, date) {
     const d = load();
-    const today = Util.today();
-    d.logs[today] = d.logs[today] || { morning: [], night: [] };
-    d.logs[today][period] = d.logs[today][period] || [];
-    const arr = d.logs[today][period];
-    const i = arr.indexOf(step);
-    if (i >= 0) arr.splice(i, 1); else arr.push(step);
+    d.logs[date] = d.logs[date] || { morning: [], night: [] };
+    d.logs[date][period] = d.logs[date][period] || [];
+    const arr = d.logs[date][period];
+    const i = arr.indexOf(stepId);
+    if (i >= 0) arr.splice(i, 1); else arr.push(stepId);
+    save(d);
+  }
+
+  function addStep(period, name) {
+    if (!name || !name.trim()) return;
+    const d = load();
+    d.steps[period].push({ id: Storage.uid(), name: name.trim() });
+    save(d);
+  }
+  function renameStep(period, stepId, name) {
+    const d = load();
+    const s = d.steps[period].find((x) => x.id === stepId);
+    if (s) { s.name = name; save(d); }
+  }
+  function delStep(period, stepId) {
+    const d = load();
+    d.steps[period] = d.steps[period].filter((x) => x.id !== stepId);
     save(d);
   }
 
@@ -56,7 +120,6 @@
   }
 
   function stats(d) {
-    // 本周 7 天的护肤完成率
     const days = Util.rangeDays(7);
     const totalSteps = (d.steps.morning.length + d.steps.night.length) || 1;
     const pctList = days.map((day) => {
@@ -70,19 +133,27 @@
 
   function render() {
     const d = load();
-    const today = Util.today();
-    const log = d.logs[today] || { morning: [], night: [] };
+    const date = selDate;
+    const isToday = Util.isToday(date);
+    const log = d.logs[date] || { morning: [], night: [] };
     const s = stats(d);
+    const dayLabel = isToday ? '今日' : Util.dateLabel(date);
 
     return `
       <div class="card">
         <div class="card-title">
-          <h3>${iconHTML('drop', 16, '#5C6E7E')} 今日护肤</h3>
-          <span class="tag tag-skincare">护肤</span>
+          <h3>${iconHTML('drop', 16, '#5C6E7E')} ${dayLabel}护肤</h3>
+          <button class="mini-btn ${manageOpen ? 'on' : ''}" id="skManageBtn">
+            ${iconHTML('pencil', 12, manageOpen ? '#fff' : '#6F6A63')} 步骤
+          </button>
         </div>
 
-        ${renderPeriodBlock('morning', 'sun',     d.steps.morning, log.morning || [], s)}
-        ${renderPeriodBlock('night',   'moon',    d.steps.night,   log.night || [], s)}
+        ${Util.dateBar('skDate', date)}
+
+        ${manageOpen ? renderManage(d) : ''}
+
+        ${renderPeriodBlock('morning', 'sun',  '晨间流程', d.steps.morning, log.morning || [])}
+        ${renderPeriodBlock('night',   'moon', '晚间流程', d.steps.night,   log.night || [])}
       </div>
 
       <div class="card">
@@ -123,9 +194,34 @@
     `;
   }
 
-  function renderPeriodBlock(period, iconName, steps, done, s) {
+  function renderManage(d) {
+    const block = (period, title) => `
+      <div class="mp-title">${title}</div>
+      ${d.steps[period].length === 0
+        ? `<div class="mp-hint">还没有步骤，下面加一个吧</div>`
+        : d.steps[period].map((s) => `
+            <div class="manage-row" data-period="${period}" data-sid="${s.id}">
+              <input class="input mr-name" data-field="stepName" value="${Util.esc(s.name)}" maxlength="14" />
+              <button class="mr-del" data-act="delStep" aria-label="删除步骤">×</button>
+            </div>
+          `).join('')
+      }
+      <div class="manage-add">
+        <input class="input" id="skNew_${period}" placeholder="新增${title}，如 眼霜" maxlength="14" />
+        <button class="btn btn-skincare btn-sm" data-act="addStep" data-period="${period}">+</button>
+      </div>
+    `;
+    return `
+      <div class="manage-panel">
+        <div class="mp-hint">步骤名称可改，改完自动保存；删掉不影响历史打卡。</div>
+        ${block('morning', '晨间步骤')}
+        ${block('night', '晚间步骤')}
+      </div>
+    `;
+  }
+
+  function renderPeriodBlock(period, iconName, titleText, steps, done) {
     const pct = steps.length === 0 ? 0 : Math.round((done.length / steps.length) * 100);
-    const titleText = iconName === 'sun' ? '晨间流程' : '晚间流程';
     return `
       <div class="skincare-block">
         <div class="sb-head">
@@ -134,13 +230,13 @@
           <span class="pct">${done.length}/${steps.length} · ${pct}%</span>
         </div>
         ${steps.length === 0
-          ? `<div class="empty" style="padding:14px 0;font-size:12px">暂无步骤</div>`
+          ? `<div class="empty" style="padding:14px 0;font-size:12px">暂无步骤，点右上角「步骤」添加</div>`
           : steps.map((step) => {
-              const isDone = done.includes(step);
+              const isDone = done.includes(step.id);
               return `
-                <div class="step-row ${isDone ? 'done' : ''}" data-period="${period}" data-step="${Util.esc(step)}">
+                <div class="step-row ${isDone ? 'done' : ''}" data-period="${period}" data-step="${step.id}">
                   <div class="check">${isDone ? '✓' : ''}</div>
-                  <div>${Util.esc(step)}</div>
+                  <div>${Util.esc(step.name)}</div>
                 </div>
               `;
             }).join('')
@@ -153,13 +249,36 @@
     const pane = document.getElementById('pane-skincare');
     if (!pane) return;
 
+    // 日期切换
+    Util.bindDateBar(pane, 'skDate', (v) => { selDate = v; refresh(); });
+
+    // 展开/收起步骤管理
+    const manageBtn = document.getElementById('skManageBtn');
+    if (manageBtn) {
+      manageBtn.addEventListener('click', () => { manageOpen = !manageOpen; refresh(); });
+    }
+
     // 步骤勾选
     pane.querySelectorAll('.step-row').forEach((row) => {
       row.addEventListener('click', () => {
-        const period = row.dataset.period;
-        const step = row.dataset.step;
-        toggleStep(period, step);
+        toggleStep(row.dataset.period, row.dataset.step, selDate);
         refresh();
+      });
+    });
+
+    // 步骤改名（保存不重渲染）
+    pane.querySelectorAll('.manage-row[data-sid]').forEach((row) => {
+      const inp = row.querySelector('[data-field="stepName"]');
+      if (!inp) return;
+      inp.addEventListener('change', () => {
+        const v = inp.value.trim();
+        if (!v) {
+          const d = load();
+          const s = d.steps[row.dataset.period].find((x) => x.id === row.dataset.sid);
+          inp.value = s ? s.name : '';
+          return;
+        }
+        renameStep(row.dataset.period, row.dataset.sid, v);
       });
     });
 
@@ -177,8 +296,34 @@
       });
     }
 
-    // 产品操作（事件委托）
-    pane.addEventListener('click', (e) => {
+    // 事件委托：步骤增删 + 产品操作（onclick 覆盖式绑定，避免刷新累积）
+    pane.onclick = (e) => {
+      const addStepBtn = e.target.closest('[data-act="addStep"]');
+      if (addStepBtn) {
+        const period = addStepBtn.dataset.period;
+        const inp = document.getElementById('skNew_' + period);
+        const v = inp ? inp.value.trim() : '';
+        if (!v) { Toast('请输入步骤名称'); return; }
+        addStep(period, v);
+        Toast('已添加步骤');
+        refresh();
+        return;
+      }
+
+      const delStepBtn = e.target.closest('[data-act="delStep"]');
+      if (delStepBtn) {
+        const row = delStepBtn.closest('[data-sid]');
+        if (!row) return;
+        const inp = row.querySelector('[data-field="stepName"]');
+        const nm = inp ? inp.value : '';
+        if (confirm('删除步骤「' + nm + '」？\n历史打卡记录不会受影响。')) {
+          delStep(row.dataset.period, row.dataset.sid);
+          Toast('已删除步骤');
+          refresh();
+        }
+        return;
+      }
+
       const item = e.target.closest('.product-item');
       if (!item) return;
       const id = item.dataset.id;
@@ -189,7 +334,8 @@
       } else if (e.target.closest('[data-act="plus"]')) {
         adjustProduct(id, 20); refresh();
       }
-    });
+    };
+
   }
 
   function drawChart() {
@@ -251,7 +397,7 @@
     }
     try { drawChart(); } catch (e) { console.error('[skincare.js] chart error:', e); }
   }
-  function init() { refresh(); }
+  function init() { selDate = Util.today(); refresh(); }
   function onShow() { drawChart(); }
   global.Skincare = { init, refresh, onShow };
 })(window);

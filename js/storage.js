@@ -47,6 +47,71 @@
       const d = new Date();
       return this.fmtDate(d);
     },
+    /** 是否今天 */
+    isToday(dateStr) {
+      return dateStr === this.today();
+    },
+    /** 日期加减天数 */
+    shiftDate(dateStr, delta) {
+      const d = new Date((dateStr || this.today()) + 'T00:00:00');
+      if (isNaN(d.getTime())) return this.today();
+      d.setDate(d.getDate() + delta);
+      return this.fmtDate(d);
+    },
+    /** 日期友好标签：今天 / 昨天 / 11月5日 周三 */
+    dateLabel(dateStr) {
+      const today = this.today();
+      if (dateStr === today) return '今天';
+      if (dateStr === this.shiftDate(today, -1)) return '昨天';
+      const d = new Date(dateStr + 'T00:00:00');
+      if (isNaN(d.getTime())) return dateStr;
+      return `${this.md(d)} ${this.weekdayCN(d)}`;
+    },
+    /** 日期选择条 HTML（默认选中 dateStr，不能选未来） */
+    dateBar(inputId, dateStr) {
+      const today = this.today();
+      const val = dateStr || today;
+      const atToday = val >= today;
+      return `
+        <div class="date-bar">
+          <button class="db-arrow" type="button" data-db="prev" aria-label="前一天">‹</button>
+          <div class="db-center">
+            <span class="db-label">${this.dateLabel(val)}</span>
+            <input class="db-input" type="date" id="${inputId}" value="${val}" max="${today}" aria-label="选择日期" />
+          </div>
+          <button class="db-arrow" type="button" data-db="next" aria-label="后一天" ${atToday ? 'disabled' : ''}>›</button>
+          ${atToday ? '' : '<button class="db-today" type="button" data-db="today">回到今天</button>'}
+        </div>`;
+    },
+    /** 绑定日期条：切换日期时回调 */
+    bindDateBar(scope, inputId, onChange) {
+      const root = scope || document;
+      const inp = root.querySelector('#' + inputId);
+      if (!inp) return;
+      const bar = inp.closest('.date-bar');
+      let cur = inp.value || this.today();
+
+      const commit = (v) => {
+        const today = this.today();
+        if (!v) v = today;
+        if (v > today) v = today;
+        cur = v;
+        onChange(v);
+      };
+
+      inp.addEventListener('change', () => commit(inp.value));
+
+      if (bar) {
+        bar.querySelectorAll('[data-db]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const act = btn.dataset.db;
+            if (act === 'prev') commit(this.shiftDate(cur, -1));
+            else if (act === 'next') commit(this.shiftDate(cur, 1));
+            else commit(this.today());
+          });
+        });
+      }
+    },
     fmtDate(d) {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, '0');

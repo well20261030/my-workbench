@@ -494,6 +494,95 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* ========== 日期选择条 ========== */
+.date-bar {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--card-2);
+  border-radius: var(--r-full);
+  padding: 5px 8px;
+  margin-bottom: 14px;
+}
+.date-bar .db-arrow {
+  width: 30px; height: 30px; flex-shrink: 0;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; line-height: 1;
+  color: var(--text-2);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform .15s, opacity .15s;
+}
+.date-bar .db-arrow:active { transform: scale(0.9); }
+.date-bar .db-arrow:disabled { opacity: 0.35; }
+.date-bar .db-center {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  position: relative;
+  cursor: pointer;
+}
+.date-bar .db-input {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  opacity: 0;
+  border: none; background: transparent;
+  cursor: pointer; outline: none;
+  -webkit-appearance: none; appearance: none;
+}
+.date-bar .db-label { font-size: 14px; font-weight: 600; color: var(--text-1); white-space: nowrap; }
+.date-bar .db-today {
+  font-size: 11px; color: #fff;
+  background: var(--c-accent);
+  padding: 6px 10px; border-radius: var(--r-full);
+  white-space: nowrap; flex-shrink: 0;
+}
+
+/* ========== 自定义管理面板（运动类型 / 护肤步骤） ========== */
+.mini-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; color: var(--text-2);
+  background: var(--card-2);
+  border: 1px solid var(--divider);
+  padding: 5px 10px; border-radius: var(--r-full);
+  transition: background .15s, color .15s;
+}
+.mini-btn.on { background: var(--text-1); color: #fff; border-color: var(--text-1); }
+
+.manage-panel {
+  background: var(--card-2);
+  border: 1px dashed var(--divider);
+  border-radius: var(--r-sm);
+  padding: 12px;
+  margin: 2px 0 14px;
+}
+.manage-panel .mp-title {
+  font-size: 12px; font-weight: 600; color: var(--text-2);
+  margin: 0 0 8px;
+}
+.manage-panel .mp-title:not(:first-child) { margin-top: 14px; }
+.manage-panel .mp-hint { font-size: 11px; color: var(--text-3); line-height: 1.5; margin-bottom: 8px; }
+.manage-row {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 6px;
+}
+.manage-row .input {
+  padding: 8px 10px; font-size: 13px;
+  background: #fff;
+  min-width: 0;
+}
+.manage-row .mr-name { flex: 1.6; }
+.manage-row .mr-num { flex: 1; }
+.manage-row .mr-unit { font-size: 11px; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
+.manage-row .mr-del {
+  flex-shrink: 0;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-3); font-size: 15px;
+  background: #fff;
+}
+.manage-row .mr-del:active { background: var(--c-danger); color: #fff; }
+.manage-add { display: flex; gap: 6px; margin-top: 8px; }
+.manage-add .input { flex: 1; padding: 8px 10px; font-size: 13px; background: #fff; }
+
 /* ========== 响应式 ========== */
 @media (min-width: 768px) {
   .module-grid { grid-template-columns: repeat(4, 1fr); }
@@ -532,7 +621,6 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
 //# sourceMappingURL=chart.umd.js.map
 
 </script>
-
 </head>
 <body>
   <!-- 顶部 Header -->
@@ -704,6 +792,71 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
       const d = new Date();
       return this.fmtDate(d);
     },
+    /** 是否今天 */
+    isToday(dateStr) {
+      return dateStr === this.today();
+    },
+    /** 日期加减天数 */
+    shiftDate(dateStr, delta) {
+      const d = new Date((dateStr || this.today()) + 'T00:00:00');
+      if (isNaN(d.getTime())) return this.today();
+      d.setDate(d.getDate() + delta);
+      return this.fmtDate(d);
+    },
+    /** 日期友好标签：今天 / 昨天 / 11月5日 周三 */
+    dateLabel(dateStr) {
+      const today = this.today();
+      if (dateStr === today) return '今天';
+      if (dateStr === this.shiftDate(today, -1)) return '昨天';
+      const d = new Date(dateStr + 'T00:00:00');
+      if (isNaN(d.getTime())) return dateStr;
+      return `${this.md(d)} ${this.weekdayCN(d)}`;
+    },
+    /** 日期选择条 HTML（默认选中 dateStr，不能选未来） */
+    dateBar(inputId, dateStr) {
+      const today = this.today();
+      const val = dateStr || today;
+      const atToday = val >= today;
+      return `
+        <div class="date-bar">
+          <button class="db-arrow" type="button" data-db="prev" aria-label="前一天">‹</button>
+          <div class="db-center">
+            <span class="db-label">${this.dateLabel(val)}</span>
+            <input class="db-input" type="date" id="${inputId}" value="${val}" max="${today}" aria-label="选择日期" />
+          </div>
+          <button class="db-arrow" type="button" data-db="next" aria-label="后一天" ${atToday ? 'disabled' : ''}>›</button>
+          ${atToday ? '' : '<button class="db-today" type="button" data-db="today">回到今天</button>'}
+        </div>`;
+    },
+    /** 绑定日期条：切换日期时回调 */
+    bindDateBar(scope, inputId, onChange) {
+      const root = scope || document;
+      const inp = root.querySelector('#' + inputId);
+      if (!inp) return;
+      const bar = inp.closest('.date-bar');
+      let cur = inp.value || this.today();
+
+      const commit = (v) => {
+        const today = this.today();
+        if (!v) v = today;
+        if (v > today) v = today;
+        cur = v;
+        onChange(v);
+      };
+
+      inp.addEventListener('change', () => commit(inp.value));
+
+      if (bar) {
+        bar.querySelectorAll('[data-db]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const act = btn.dataset.db;
+            if (act === 'prev') commit(this.shiftDate(cur, -1));
+            else if (act === 'next') commit(this.shiftDate(cur, 1));
+            else commit(this.today());
+          });
+        });
+      }
+    },
     fmtDate(d) {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -793,10 +946,13 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
 /* ============================
  * study.js — 学习打卡模块
  * 数据：{ tasks: [{id,name,doneDates:[yyyy-mm-dd]}], records: [{id,date,duration,note}] }
+ * 支持选择日期补记（不能选未来）
  * ============================ */
 (function (global) {
   const KEY = 'study';
   const DEFAULT_TASKS = ['背单词 20 个', '阅读 30 分钟', '写作 / 复盘'];
+
+  let selDate = Util.today();
 
   function load() {
     let d = Storage.get(KEY);
@@ -810,22 +966,22 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     // 兼容
     d.tasks = d.tasks || [];
     d.records = d.records || [];
+    d.tasks.forEach((t) => { t.doneDates = t.doneDates || []; });
     return d;
   }
   function save(d) { Storage.set(KEY, d); }
 
-  function isDoneToday(task) {
-    return task.doneDates && task.doneDates.includes(Util.today());
+  function isDone(task, date) {
+    return (task.doneDates || []).includes(date);
   }
 
-  function toggleToday(taskId) {
+  function toggleTask(taskId, date) {
     const d = load();
     const t = d.tasks.find((x) => x.id === taskId);
     if (!t) return;
-    const today = Util.today();
-    const i = t.doneDates.indexOf(today);
+    const i = t.doneDates.indexOf(date);
     if (i >= 0) t.doneDates.splice(i, 1);
-    else t.doneDates.push(today);
+    else t.doneDates.push(date);
     save(d);
   }
 
@@ -842,34 +998,41 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     save(d);
   }
 
-  function addRecord(duration, note) {
+  function addRecord(duration, note, date) {
     const d = load();
-    d.records.unshift({ id: Storage.uid(), date: Util.today(), duration: Number(duration) || 0, note: note || '' });
+    d.records.unshift({
+      id: Storage.uid(),
+      date: date || Util.today(),
+      duration: Number(duration) || 0,
+      note: note || '',
+    });
     save(d);
   }
 
   /* -------- 渲染 -------- */
   function render() {
     const d = load();
-    const today = Util.today();
+    const date = selDate;
+    const isToday = Util.isToday(date);
+    const dayLabel = isToday ? '今日' : Util.dateLabel(date);
+
     const allDoneDates = Array.from(new Set(d.tasks.flatMap((t) => t.doneDates))).sort();
     const streak = Util.streak(allDoneDates);
     const totalDays = allDoneDates.length;
 
-    // 今日学习时长（求和当日 records.duration）
-    const todayMin = d.records.filter((r) => r.date === today).reduce((s, r) => s + r.duration, 0);
-
-    // 近 30 天每日学习时长
-    const days = Util.rangeDays(30);
-    const minutesByDate = {};
-    d.records.forEach((r) => { minutesByDate[r.date] = (minutesByDate[r.date] || 0) + r.duration; });
+    // 所选日期的学习时长
+    const dayMin = d.records.filter((r) => r.date === date).reduce((s, r) => s + r.duration, 0);
+    const dayDoneCount = d.tasks.filter((t) => isDone(t, date)).length;
 
     return `
       <div class="card">
         <div class="card-title">
-          <h3>${iconHTML('book', 16, '#8B6161')} 今日学习</h3>
+          <h3>${iconHTML('book', 16, '#8B6161')} ${dayLabel}学习</h3>
           <span class="tag tag-study">学习打卡</span>
         </div>
+
+        ${Util.dateBar('studyDate', date)}
+
         <div class="streak-box">
           <div class="streak-cell">
             <div class="v">${streak}</div>
@@ -880,18 +1043,21 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
             <div class="l">累计天数</div>
           </div>
           <div class="streak-cell">
-            <div class="v">${todayMin}<span style="font-size:11px;color:var(--text-3);font-weight:500"> 分</span></div>
-            <div class="l">今日学习</div>
+            <div class="v">${dayMin}<span style="font-size:11px;color:var(--text-3);font-weight:500"> 分</span></div>
+            <div class="l">${isToday ? '今日学习' : '当日学习'}</div>
           </div>
         </div>
 
-        <div style="font-size:12px;color:var(--text-2);margin:14px 0 6px">今日任务</div>
+        <div style="font-size:12px;color:var(--text-2);margin:14px 0 6px">
+          ${isToday ? '今日任务' : `${Util.dateLabel(date)}的任务`}
+          ${d.tasks.length ? `<span style="color:var(--text-3)"> · 完成 ${dayDoneCount}/${d.tasks.length}</span>` : ''}
+        </div>
         <div id="studyTaskList">
           ${d.tasks.length === 0
             ? `<div class="empty"><div class="emo">${iconHTML('pencil', 32, '#A09A92')}</div>还没有任务，添加一个吧</div>`
             : d.tasks.map((t) => `
-              <div class="task-item ${isDoneToday(t) ? 'done' : ''}" data-id="${t.id}">
-                <div class="check" data-act="toggle">${isDoneToday(t) ? '✓' : ''}</div>
+              <div class="task-item ${isDone(t, date) ? 'done' : ''}" data-id="${t.id}">
+                <div class="check" data-act="toggle">${isDone(t, date) ? '✓' : ''}</div>
                 <div class="task-name">${Util.esc(t.name)}</div>
                 <button class="task-del" data-act="del" aria-label="删除">×</button>
               </div>
@@ -906,16 +1072,19 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
       </div>
 
       <div class="card">
-        <div class="card-title"><h3>${iconHTML('clock', 16, '#8B6161')} 学习记录</h3></div>
+        <div class="card-title">
+          <h3>${iconHTML('clock', 16, '#8B6161')} 学习记录</h3>
+          <span class="more">记到 ${Util.dateLabel(date)}</span>
+        </div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
-          <input class="input" id="studyMin" type="number" min="1" max="600" placeholder="时长(分钟)" style="flex:1;min-width:120px" />
-          <input class="input" id="studyNote" placeholder="学了啥？(可选)" style="flex:1.4;min-width:140px" maxlength="40" />
+          <input class="input" id="studyMin" type="number" min="1" max="600" placeholder="时长(分钟)" style="flex:1;min-width:110px" />
+          <input class="input" id="studyNote" placeholder="学了啥？(可选)" style="flex:1.4;min-width:130px" maxlength="40" />
           <button class="btn btn-study btn-sm" id="studyLogBtn">记录</button>
         </div>
         <div style="font-size:12px;color:var(--text-2);margin:14px 0 6px">最近记录</div>
         ${d.records.length === 0
           ? `<div class="empty"><div class="emo">${iconHTML('clock', 32, '#A09A92')}</div>暂无记录</div>`
-          : d.records.slice(0, 8).map((r) => `
+          : d.records.slice(0, 12).map((r) => `
             <div class="record-item">
               <div class="ri-icon" style="background:var(--c-study-soft)">${iconHTML('book', 18, '#8B6161')}</div>
               <div class="ri-main">
@@ -935,6 +1104,12 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
   }
 
   function bind() {
+    const pane = document.getElementById('pane-study');
+    if (!pane) return;
+
+    // 日期切换
+    Util.bindDateBar(pane, 'studyDate', (v) => { selDate = v; refresh(); });
+
     // 任务勾选 / 删除
     const list = document.getElementById('studyTaskList');
     if (list) {
@@ -945,7 +1120,7 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
         if (e.target.closest('[data-act="del"]')) {
           if (confirm('删除这个任务？')) { delTask(id); refresh(); }
         } else if (e.target.closest('[data-act="toggle"]')) {
-          toggleToday(id); refresh();
+          toggleTask(id, selDate); refresh();
         }
       });
     }
@@ -968,10 +1143,10 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
         const min = document.getElementById('studyMin').value;
         const note = document.getElementById('studyNote').value;
         if (!min || min <= 0) { Toast('请输入时长'); return; }
-        addRecord(min, note);
+        addRecord(min, note, selDate);
         document.getElementById('studyMin').value = '';
         document.getElementById('studyNote').value = '';
-        Toast('已记录'); refresh();
+        Toast(`已记录到${Util.dateLabel(selDate)}`); refresh();
       });
     }
   }
@@ -1029,7 +1204,7 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     try { drawChart(); } catch (e) { console.error('[study.js] chart error:', e); }
   }
 
-  function init() { refresh(); }
+  function init() { selDate = Util.today(); refresh(); }
   function onShow() { drawChart(); }
 
   global.Study = { init, refresh, onShow };
@@ -1039,29 +1214,68 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
   <script>
 /* ============================
  * exercise.js — 运动锻炼模块
- * 数据：{ records: [{id,date,type,duration,calorie,note}] }
+ * 数据：{ records: [{id,date,type,typeName,duration,calorie,note}],
+ *         types: [{key,name,icon,caloriePerMin}] }
+ * 运动类型可自定义增删改，记录日期可选
  * ============================ */
 (function (global) {
   const KEY = 'exercise';
-  const TYPES = [
-    { key: 'run',     name: '跑步',   icon: 'run',      caloriePerMin: 9  },
-    { key: 'walk',    name: '散步',   icon: 'walk',     caloriePerMin: 4  },
-    { key: 'yoga',    name: '瑜伽',   icon: 'yoga',     caloriePerMin: 4  },
-    { key: 'strength',name: '力量',   icon: 'strength', caloriePerMin: 7  },
-    { key: 'jump',    name: '跳绳',   icon: 'jump',     caloriePerMin: 11 },
-    { key: 'ride',    name: '骑行',   icon: 'ride',     caloriePerMin: 7  },
-    { key: 'hiit',    name: 'HIIT',   icon: 'hiit',     caloriePerMin: 12 },
-    { key: 'other',   name: '其他',   icon: 'sparkle',  caloriePerMin: 5  },
+  const DEFAULT_TYPES = [
+    { key: 'run',      name: '跑步', icon: 'run',      caloriePerMin: 9  },
+    { key: 'walk',     name: '散步', icon: 'walk',     caloriePerMin: 4  },
+    { key: 'yoga',     name: '瑜伽', icon: 'yoga',     caloriePerMin: 4  },
+    { key: 'strength', name: '力量', icon: 'strength', caloriePerMin: 7  },
+    { key: 'jump',     name: '跳绳', icon: 'jump',     caloriePerMin: 11 },
+    { key: 'ride',     name: '骑行', icon: 'ride',     caloriePerMin: 7  },
+    { key: 'hiit',     name: 'HIIT', icon: 'hiit',     caloriePerMin: 12 },
+    { key: 'other',    name: '其他', icon: 'sparkle',  caloriePerMin: 5  },
   ];
-  const TYPES_MAP = Object.fromEntries(TYPES.map((t) => [t.key, t]));
+
+  let selDate = Util.today();
+  let manageOpen = false;
 
   function load() {
     let d = Storage.get(KEY);
-    if (!d) { d = { records: [] }; Storage.set(KEY, d); }
+    if (!d) { d = {}; }
     d.records = d.records || [];
+    if (!Array.isArray(d.types) || d.types.length === 0) {
+      d.types = DEFAULT_TYPES.map((t) => ({ ...t }));
+      Storage.set(KEY, d);
+    }
     return d;
   }
   function save(d) { Storage.set(KEY, d); }
+
+  function typeMap() {
+    const map = {};
+    load().types.forEach((t) => { map[t.key] = t; });
+    return map;
+  }
+  function getType(key) { return load().types.find((t) => t.key === key); }
+
+  function addType(name, cal) {
+    const d = load();
+    d.types.push({
+      key: 'c' + Storage.uid(),
+      name: name.trim(),
+      icon: 'sparkle',
+      caloriePerMin: Number(cal) || 5,
+    });
+    save(d);
+    return d.types[d.types.length - 1].key;
+  }
+  function updateType(key, patch) {
+    const d = load();
+    const t = d.types.find((x) => x.key === key);
+    if (!t) return;
+    Object.assign(t, patch);
+    save(d);
+  }
+  function delType(key) {
+    const d = load();
+    d.types = d.types.filter((x) => x.key !== key);
+    save(d);
+  }
 
   function add(rec) {
     const d = load();
@@ -1069,6 +1283,7 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
       id: Storage.uid(),
       date: rec.date || Util.today(),
       type: rec.type,
+      typeName: rec.typeName || '',
       duration: Number(rec.duration) || 0,
       calorie: Number(rec.calorie) || 0,
       note: rec.note || '',
@@ -1081,15 +1296,14 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     save(d);
   }
 
-  function stats(d) {
-    const today = Util.today();
-    const todayList = d.records.filter((r) => r.date === today);
+  function stats(d, date) {
+    const dayList = d.records.filter((r) => r.date === date);
     const weekDays = Util.rangeDays(7);
     const weekList = d.records.filter((r) => weekDays.includes(r.date));
     return {
-      todayCount: todayList.length,
-      todayMin: todayList.reduce((s, r) => s + r.duration, 0),
-      todayCal: todayList.reduce((s, r) => s + r.calorie, 0),
+      dayCount: dayList.length,
+      dayMin: dayList.reduce((s, r) => s + r.duration, 0),
+      dayCal: dayList.reduce((s, r) => s + r.calorie, 0),
       weekCount: weekList.length,
       weekMin: weekList.reduce((s, r) => s + r.duration, 0),
       weekCal: weekList.reduce((s, r) => s + r.calorie, 0),
@@ -1101,27 +1315,37 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
 
   function render() {
     const d = load();
-    const s = stats(d);
-    const today = Util.today();
-    const todayList = d.records.filter((r) => r.date === today);
+    const date = selDate;
+    const isToday = Util.isToday(date);
+    const dayLabel = isToday ? '今日' : Util.dateLabel(date);
+    const s = stats(d, date);
+    const dayList = d.records.filter((r) => r.date === date);
+    const map = typeMap();
 
     return `
       <div class="card">
         <div class="card-title">
-          <h3>${iconHTML('dumbbell', 16, '#5C6F4E')} 今日运动</h3>
-          <span class="tag tag-exercise">运动</span>
+          <h3>${iconHTML('dumbbell', 16, '#5C6F4E')} ${dayLabel}运动</h3>
+          <button class="mini-btn ${manageOpen ? 'on' : ''}" id="exManageBtn">
+            ${iconHTML('pencil', 12, manageOpen ? '#fff' : '#6F6A63')} 类型
+          </button>
         </div>
+
+        ${Util.dateBar('exDate', date)}
+
         <div class="stat-grid">
-          <div class="stat-cell"><div class="v">${s.todayCount}</div><div class="l">今日次数</div></div>
-          <div class="stat-cell"><div class="v">${s.todayMin}</div><div class="l">今日分钟</div></div>
-          <div class="stat-cell"><div class="v">${s.todayCal}</div><div class="l">今日消耗 kcal</div></div>
+          <div class="stat-cell"><div class="v">${s.dayCount}</div><div class="l">${isToday ? '今日' : '当日'}次数</div></div>
+          <div class="stat-cell"><div class="v">${s.dayMin}</div><div class="l">分钟</div></div>
+          <div class="stat-cell"><div class="v">${s.dayCal}</div><div class="l">消耗 kcal</div></div>
         </div>
+
+        ${manageOpen ? renderManage(d) : ''}
 
         <div style="font-size:12px;color:var(--text-2);margin:10px 0 8px">记录一次</div>
         <div class="field">
           <label>运动类型</label>
           <select class="select" id="exType">
-            ${TYPES.map((t) => `<option value="${t.key}">${t.name}</option>`).join('')}
+            ${d.types.map((t) => `<option value="${t.key}">${Util.esc(t.name)}</option>`).join('')}
           </select>
         </div>
         <div class="row" style="gap:8px">
@@ -1137,11 +1361,11 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
         <div class="field" style="margin-top:8px">
           <input class="input" id="exNote" placeholder="备注(可选)" maxlength="40" />
         </div>
-        <button class="btn btn-exercise btn-block" id="exAddBtn">＋ 添加运动记录</button>
+        <button class="btn btn-exercise btn-block" id="exAddBtn">＋ 添加到${Util.dateLabel(date)}</button>
 
-        ${todayList.length > 0 ? `
-          <div style="font-size:12px;color:var(--text-2);margin:14px 0 6px">今日记录</div>
-          ${todayList.map((r) => renderItem(r)).join('')}
+        ${dayList.length > 0 ? `
+          <div style="font-size:12px;color:var(--text-2);margin:14px 0 6px">${isToday ? '今日' : '当日'}记录</div>
+          ${dayList.map((r) => renderItem(r, map)).join('')}
         ` : ''}
       </div>
 
@@ -1163,19 +1387,43 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
         <div class="card-title"><h3>${iconHTML('book', 16, '#5C6F4E')} 全部记录</h3></div>
         ${d.records.length === 0
           ? `<div class="empty"><div class="emo">${iconHTML('run', 32, '#A09A92')}</div>还没运动过，起来动一动</div>`
-          : renderGrouped(d.records)
+          : renderGrouped(d.records, map)
         }
       </div>
     `;
   }
 
-  function renderItem(r) {
-    const t = TYPES_MAP[r.type] || TYPES_MAP.other;
+  function renderManage(d) {
+    return `
+      <div class="manage-panel">
+        <div class="mp-title">运动类型</div>
+        <div class="mp-hint">名称、消耗都能改；消耗用于自动算卡路里。删掉类型不影响历史记录。</div>
+        ${d.types.map((t) => `
+          <div class="manage-row" data-tkey="${t.key}">
+            <input class="input mr-name" data-field="name" value="${Util.esc(t.name)}" maxlength="10" />
+            <input class="input mr-num" data-field="cal" type="number" min="0" max="60" step="1" value="${t.caloriePerMin}" />
+            <span class="mr-unit">kcal/分</span>
+            <button class="mr-del" data-act="delType" aria-label="删除类型">×</button>
+          </div>
+        `).join('')}
+        <div class="manage-add">
+          <input class="input" id="exNewTypeName" placeholder="新类型，如 爬山" maxlength="10" />
+          <input class="input" id="exNewTypeCal" type="number" min="0" max="60" placeholder="kcal/分" style="max-width:86px" />
+          <button class="btn btn-exercise btn-sm" id="exAddTypeBtn">+</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderItem(r, map) {
+    const t = map[r.type];
+    const name = t ? t.name : (r.typeName || '其他');
+    const icon = t ? t.icon : 'sparkle';
     return `
       <div class="record-item" data-id="${r.id}">
-        <div class="ri-icon">${iconHTML(t.icon, 18, '#5C6F4E')}</div>
+        <div class="ri-icon">${iconHTML(icon, 18, '#5C6F4E')}</div>
         <div class="ri-main">
-          <div class="ri-name">${t.name} · ${r.duration} 分钟</div>
+          <div class="ri-name">${Util.esc(name)} · ${r.duration} 分钟</div>
           <div class="ri-meta">${r.calorie ? r.calorie + ' kcal · ' : ''}${Util.esc(r.note || '')}</div>
         </div>
         <button class="ri-del" data-act="del" aria-label="删除">×</button>
@@ -1183,57 +1431,138 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     `;
   }
 
-  function renderGrouped(records) {
+  function renderGrouped(records, map) {
     const groups = {};
     records.forEach((r) => {
       (groups[r.date] = groups[r.date] || []).push(r);
     });
-    return Object.keys(groups).slice(0, 10).map((date) => {
-      const d = new Date(date);
+    return Object.keys(groups).sort().reverse().slice(0, 15).map((date) => {
+      const d = new Date(date + 'T00:00:00');
       return `
         <div class="day-group">
           <div class="dg-head">${Util.md(d)} · ${Util.weekdayCN(d)}</div>
-          ${groups[date].map((r) => renderItem(r)).join('')}
+          ${groups[date].map((r) => renderItem(r, map)).join('')}
         </div>
       `;
     }).join('');
   }
 
   function bind() {
-    // 类型切换时自动估算卡路里
+    const pane = document.getElementById('pane-exercise');
+    if (!pane) return;
+
+    // 日期切换
+    Util.bindDateBar(pane, 'exDate', (v) => { selDate = v; refresh(); });
+
+    // 展开/收起类型管理
+    const manageBtn = document.getElementById('exManageBtn');
+    if (manageBtn) {
+      manageBtn.addEventListener('click', () => { manageOpen = !manageOpen; refresh(); });
+    }
+
     const typeSel = document.getElementById('exType');
     const durInp = document.getElementById('exDur');
     const calInp = document.getElementById('exCal');
+
+    const currentType = () => {
+      const t = getType(typeSel && typeSel.value);
+      return t || { name: '运动', caloriePerMin: 5, icon: 'sparkle' };
+    };
     const autoCal = () => {
       if (!typeSel || !durInp || !calInp) return;
       if (calInp.dataset.manual === '1') return;
-      const t = TYPES_MAP[typeSel.value] || TYPES_MAP.other;
+      const t = currentType();
       const dur = Number(durInp.value) || 0;
       calInp.placeholder = `约 ${Math.round(t.caloriePerMin * dur)} kcal`;
     };
-    if (typeSel) { typeSel.addEventListener('change', autoCal); durInp.addEventListener('input', autoCal); }
+    if (typeSel && durInp) {
+      typeSel.addEventListener('change', autoCal);
+      durInp.addEventListener('input', autoCal);
+    }
     if (calInp) calInp.addEventListener('input', () => { calInp.dataset.manual = '1'; });
 
-    const addBtn = document.getElementById('exAddBtn');
-    if (addBtn) {
-      addBtn.addEventListener('click', () => {
-        const type = typeSel.value;
-        const duration = durInp.value;
-        if (!duration || duration <= 0) { Toast('请输入时长'); return; }
-        const t = TYPES_MAP[type];
-        const calorie = calInp.value
-          ? Number(calInp.value)
-          : Math.round(t.caloriePerMin * Number(duration));
-        add({ type, duration, calorie, note: document.getElementById('exNote').value });
-        durInp.value = ''; calInp.value = ''; calInp.dataset.manual = '0';
-        document.getElementById('exNote').value = '';
-        Toast('已记录'); refresh();
+    // 类型管理：改名 / 改卡路里（保存但不重渲染，避免输入中断）
+    pane.querySelectorAll('.manage-row').forEach((row) => {
+      const key = row.dataset.tkey;
+      const nameInp = row.querySelector('[data-field="name"]');
+      const calField = row.querySelector('[data-field="cal"]');
+
+      nameInp.addEventListener('change', () => {
+        const v = nameInp.value.trim();
+        if (!v) { nameInp.value = (getType(key) || {}).name || '运动'; return; }
+        updateType(key, { name: v });
+        // 同步下拉里的名字
+        const opt = typeSel && typeSel.querySelector(`option[value="${key}"]`);
+        if (opt) opt.textContent = v;
+        autoCal();
+      });
+
+      calField.addEventListener('change', () => {
+        const v = Math.max(0, Number(calField.value) || 0);
+        calField.value = v;
+        updateType(key, { caloriePerMin: v });
+        autoCal();
+      });
+    });
+
+    // 新增类型
+    const addTypeBtn = document.getElementById('exAddTypeBtn');
+    if (addTypeBtn) {
+      addTypeBtn.addEventListener('click', () => {
+        const nameInp = document.getElementById('exNewTypeName');
+        const calInp2 = document.getElementById('exNewTypeCal');
+        const name = nameInp.value.trim();
+        if (!name) { Toast('请输入类型名称'); return; }
+        const exists = load().types.some((t) => t.name === name);
+        if (exists) { Toast('这个类型已经有了'); return; }
+        addType(name, calInp2.value);
+        Toast('已添加类型');
+        refresh();
       });
     }
 
-    // 删除（事件委托）
-    const pane = document.getElementById('pane-exercise');
+    // 添加记录
+    const addBtn = document.getElementById('exAddBtn');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        const duration = durInp.value;
+        if (!duration || duration <= 0) { Toast('请输入时长'); return; }
+        const t = currentType();
+        const calorie = calInp.value
+          ? Number(calInp.value)
+          : Math.round(t.caloriePerMin * Number(duration));
+        add({
+          type: typeSel.value,
+          typeName: t.name,
+          duration,
+          calorie,
+          note: document.getElementById('exNote').value,
+          date: selDate,
+        });
+        durInp.value = ''; calInp.value = ''; calInp.dataset.manual = '0';
+        document.getElementById('exNote').value = '';
+        Toast(`已记录到${Util.dateLabel(selDate)}`); refresh();
+      });
+    }
+
+    // 删除记录 / 删除类型（事件委托，只绑定一次，避免刷新后重复触发）
+    if (pane.dataset.delBound === '1') return;
+    pane.dataset.delBound = '1';
     pane.addEventListener('click', (e) => {
+      const delTypeBtn = e.target.closest('[data-act="delType"]');
+      if (delTypeBtn) {
+        const row = delTypeBtn.closest('[data-tkey]');
+        if (!row) return;
+        const key = row.dataset.tkey;
+        const t = getType(key);
+        if (confirm(`删除运动类型「${t ? t.name : ''}」？\n历史记录不会受影响。`)) {
+          delType(key);
+          Toast('已删除类型');
+          refresh();
+        }
+        return;
+      }
+
       const delBtn = e.target.closest('[data-act="del"]');
       if (!delBtn) return;
       const item = delBtn.closest('[data-id]');
@@ -1247,7 +1576,7 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     const d = load();
     const days = Util.rangeDays(7);
     const labels = days.map((x) => {
-      const dt = new Date(x);
+      const dt = new Date(x + 'T00:00:00');
       return ['日','一','二','三','四','五','六'][dt.getDay()];
     });
     const byDate = {};
@@ -1294,7 +1623,7 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     }
     try { drawChart(); } catch (e) { console.error('[exercise.js] chart error:', e); }
   }
-  function init() { refresh(); }
+  function init() { selDate = Util.today(); refresh(); }
   function onShow() { drawChart(); }
   global.Exercise = { init, refresh, onShow };
 })(window);
@@ -1303,39 +1632,103 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
   <script>
 /* ============================
  * skincare.js — 护肤模块
- * 数据：{ steps: {morning:[...], night:[...]}, products:[{id,name,total,used,unit}],
- *         logs: { 'yyyy-mm-dd': { morning:[stepName,...], night:[...] } } }
+ * 数据：{ v:2,
+ *         steps: { morning:[{id,name}], night:[{id,name}] },
+ *         products: [{id,name,total,used,unit}],
+ *         logs: { 'yyyy-mm-dd': { morning:[stepId], night:[stepId] } } }
+ * 步骤可自定义增删改，记录日期可选
  * ============================ */
 (function (global) {
   const KEY = 'skincare';
   const DEFAULT_MORNING = ['洁面', '化妆水', '精华', '乳液', '防晒'];
   const DEFAULT_NIGHT   = ['卸妆', '洁面', '化妆水', '精华', '面霜'];
 
+  let selDate = Util.today();
+  let manageOpen = false;
+
+  function makeSteps(arr) {
+    return arr.map((name) => ({ id: Storage.uid(), name: name }));
+  }
+
+  function save(d) { Storage.set(KEY, d); }
+
+  /** 老数据（步骤是字符串）迁移成 {id,name}，日志里的名字也转成 id */
+  function migrate(d) {
+    if (d.v === 2) return d;
+    const oldSteps = d.steps || {};
+    const newSteps = { morning: [], night: [] };
+    ['morning', 'night'].forEach((p) => {
+      const list = Array.isArray(oldSteps[p]) ? oldSteps[p] : [];
+      newSteps[p] = list.map((s) => {
+        if (s && typeof s === 'object') return { id: s.id || Storage.uid(), name: s.name || '' };
+        return { id: Storage.uid(), name: String(s) };
+      });
+    });
+
+    const logs = d.logs || {};
+    Object.keys(logs).forEach((date) => {
+      const lg = logs[date] || {};
+      ['morning', 'night'].forEach((p) => {
+        const arr = Array.isArray(lg[p]) ? lg[p] : [];
+        const list = newSteps[p];
+        lg[p] = arr.map((x) => {
+          if (list.some((s) => s.id === x)) return x;
+          const m = list.find((s) => s.name === x);
+          return m ? m.id : null;
+        }).filter(Boolean);
+      });
+      logs[date] = lg;
+    });
+
+    d.steps = newSteps;
+    d.logs = logs;
+    d.v = 2;
+    save(d);
+    return d;
+  }
+
   function load() {
     let d = Storage.get(KEY);
     if (!d) {
       d = {
-        steps: { morning: [...DEFAULT_MORNING], night: [...DEFAULT_NIGHT] },
+        v: 2,
+        steps: { morning: makeSteps(DEFAULT_MORNING), night: makeSteps(DEFAULT_NIGHT) },
         products: [],
         logs: {},
       };
-      Storage.set(KEY, d);
+      save(d);
+      return d;
     }
     d.steps = d.steps || { morning: [], night: [] };
     d.products = d.products || [];
     d.logs = d.logs || {};
-    return d;
+    return migrate(d);
   }
-  function save(d) { Storage.set(KEY, d); }
 
-  function toggleStep(period, step) {
+  function toggleStep(period, stepId, date) {
     const d = load();
-    const today = Util.today();
-    d.logs[today] = d.logs[today] || { morning: [], night: [] };
-    d.logs[today][period] = d.logs[today][period] || [];
-    const arr = d.logs[today][period];
-    const i = arr.indexOf(step);
-    if (i >= 0) arr.splice(i, 1); else arr.push(step);
+    d.logs[date] = d.logs[date] || { morning: [], night: [] };
+    d.logs[date][period] = d.logs[date][period] || [];
+    const arr = d.logs[date][period];
+    const i = arr.indexOf(stepId);
+    if (i >= 0) arr.splice(i, 1); else arr.push(stepId);
+    save(d);
+  }
+
+  function addStep(period, name) {
+    if (!name || !name.trim()) return;
+    const d = load();
+    d.steps[period].push({ id: Storage.uid(), name: name.trim() });
+    save(d);
+  }
+  function renameStep(period, stepId, name) {
+    const d = load();
+    const s = d.steps[period].find((x) => x.id === stepId);
+    if (s) { s.name = name; save(d); }
+  }
+  function delStep(period, stepId) {
+    const d = load();
+    d.steps[period] = d.steps[period].filter((x) => x.id !== stepId);
     save(d);
   }
 
@@ -1359,7 +1752,6 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
   }
 
   function stats(d) {
-    // 本周 7 天的护肤完成率
     const days = Util.rangeDays(7);
     const totalSteps = (d.steps.morning.length + d.steps.night.length) || 1;
     const pctList = days.map((day) => {
@@ -1373,19 +1765,27 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
 
   function render() {
     const d = load();
-    const today = Util.today();
-    const log = d.logs[today] || { morning: [], night: [] };
+    const date = selDate;
+    const isToday = Util.isToday(date);
+    const log = d.logs[date] || { morning: [], night: [] };
     const s = stats(d);
+    const dayLabel = isToday ? '今日' : Util.dateLabel(date);
 
     return `
       <div class="card">
         <div class="card-title">
-          <h3>${iconHTML('drop', 16, '#5C6E7E')} 今日护肤</h3>
-          <span class="tag tag-skincare">护肤</span>
+          <h3>${iconHTML('drop', 16, '#5C6E7E')} ${dayLabel}护肤</h3>
+          <button class="mini-btn ${manageOpen ? 'on' : ''}" id="skManageBtn">
+            ${iconHTML('pencil', 12, manageOpen ? '#fff' : '#6F6A63')} 步骤
+          </button>
         </div>
 
-        ${renderPeriodBlock('morning', 'sun',     d.steps.morning, log.morning || [], s)}
-        ${renderPeriodBlock('night',   'moon',    d.steps.night,   log.night || [], s)}
+        ${Util.dateBar('skDate', date)}
+
+        ${manageOpen ? renderManage(d) : ''}
+
+        ${renderPeriodBlock('morning', 'sun',  '晨间流程', d.steps.morning, log.morning || [])}
+        ${renderPeriodBlock('night',   'moon', '晚间流程', d.steps.night,   log.night || [])}
       </div>
 
       <div class="card">
@@ -1426,9 +1826,34 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     `;
   }
 
-  function renderPeriodBlock(period, iconName, steps, done, s) {
+  function renderManage(d) {
+    const block = (period, title) => `
+      <div class="mp-title">${title}</div>
+      ${d.steps[period].length === 0
+        ? `<div class="mp-hint">还没有步骤，下面加一个吧</div>`
+        : d.steps[period].map((s) => `
+            <div class="manage-row" data-period="${period}" data-sid="${s.id}">
+              <input class="input mr-name" data-field="stepName" value="${Util.esc(s.name)}" maxlength="14" />
+              <button class="mr-del" data-act="delStep" aria-label="删除步骤">×</button>
+            </div>
+          `).join('')
+      }
+      <div class="manage-add">
+        <input class="input" id="skNew_${period}" placeholder="新增${title}，如 眼霜" maxlength="14" />
+        <button class="btn btn-skincare btn-sm" data-act="addStep" data-period="${period}">+</button>
+      </div>
+    `;
+    return `
+      <div class="manage-panel">
+        <div class="mp-hint">步骤名称可改，改完自动保存；删掉不影响历史打卡。</div>
+        ${block('morning', '晨间步骤')}
+        ${block('night', '晚间步骤')}
+      </div>
+    `;
+  }
+
+  function renderPeriodBlock(period, iconName, titleText, steps, done) {
     const pct = steps.length === 0 ? 0 : Math.round((done.length / steps.length) * 100);
-    const titleText = iconName === 'sun' ? '晨间流程' : '晚间流程';
     return `
       <div class="skincare-block">
         <div class="sb-head">
@@ -1437,13 +1862,13 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
           <span class="pct">${done.length}/${steps.length} · ${pct}%</span>
         </div>
         ${steps.length === 0
-          ? `<div class="empty" style="padding:14px 0;font-size:12px">暂无步骤</div>`
+          ? `<div class="empty" style="padding:14px 0;font-size:12px">暂无步骤，点右上角「步骤」添加</div>`
           : steps.map((step) => {
-              const isDone = done.includes(step);
+              const isDone = done.includes(step.id);
               return `
-                <div class="step-row ${isDone ? 'done' : ''}" data-period="${period}" data-step="${Util.esc(step)}">
+                <div class="step-row ${isDone ? 'done' : ''}" data-period="${period}" data-step="${step.id}">
                   <div class="check">${isDone ? '✓' : ''}</div>
-                  <div>${Util.esc(step)}</div>
+                  <div>${Util.esc(step.name)}</div>
                 </div>
               `;
             }).join('')
@@ -1456,13 +1881,36 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     const pane = document.getElementById('pane-skincare');
     if (!pane) return;
 
+    // 日期切换
+    Util.bindDateBar(pane, 'skDate', (v) => { selDate = v; refresh(); });
+
+    // 展开/收起步骤管理
+    const manageBtn = document.getElementById('skManageBtn');
+    if (manageBtn) {
+      manageBtn.addEventListener('click', () => { manageOpen = !manageOpen; refresh(); });
+    }
+
     // 步骤勾选
     pane.querySelectorAll('.step-row').forEach((row) => {
       row.addEventListener('click', () => {
-        const period = row.dataset.period;
-        const step = row.dataset.step;
-        toggleStep(period, step);
+        toggleStep(row.dataset.period, row.dataset.step, selDate);
         refresh();
+      });
+    });
+
+    // 步骤改名（保存不重渲染）
+    pane.querySelectorAll('.manage-row[data-sid]').forEach((row) => {
+      const inp = row.querySelector('[data-field="stepName"]');
+      if (!inp) return;
+      inp.addEventListener('change', () => {
+        const v = inp.value.trim();
+        if (!v) {
+          const d = load();
+          const s = d.steps[row.dataset.period].find((x) => x.id === row.dataset.sid);
+          inp.value = s ? s.name : '';
+          return;
+        }
+        renameStep(row.dataset.period, row.dataset.sid, v);
       });
     });
 
@@ -1480,8 +1928,34 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
       });
     }
 
-    // 产品操作（事件委托）
-    pane.addEventListener('click', (e) => {
+    // 事件委托：步骤增删 + 产品操作（onclick 覆盖式绑定，避免刷新累积）
+    pane.onclick = (e) => {
+      const addStepBtn = e.target.closest('[data-act="addStep"]');
+      if (addStepBtn) {
+        const period = addStepBtn.dataset.period;
+        const inp = document.getElementById('skNew_' + period);
+        const v = inp ? inp.value.trim() : '';
+        if (!v) { Toast('请输入步骤名称'); return; }
+        addStep(period, v);
+        Toast('已添加步骤');
+        refresh();
+        return;
+      }
+
+      const delStepBtn = e.target.closest('[data-act="delStep"]');
+      if (delStepBtn) {
+        const row = delStepBtn.closest('[data-sid]');
+        if (!row) return;
+        const inp = row.querySelector('[data-field="stepName"]');
+        const nm = inp ? inp.value : '';
+        if (confirm('删除步骤「' + nm + '」？\n历史打卡记录不会受影响。')) {
+          delStep(row.dataset.period, row.dataset.sid);
+          Toast('已删除步骤');
+          refresh();
+        }
+        return;
+      }
+
       const item = e.target.closest('.product-item');
       if (!item) return;
       const id = item.dataset.id;
@@ -1492,7 +1966,8 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
       } else if (e.target.closest('[data-act="plus"]')) {
         adjustProduct(id, 20); refresh();
       }
-    });
+    };
+
   }
 
   function drawChart() {
@@ -1554,7 +2029,7 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     }
     try { drawChart(); } catch (e) { console.error('[skincare.js] chart error:', e); }
   }
-  function init() { refresh(); }
+  function init() { selDate = Util.today(); refresh(); }
   function onShow() { drawChart(); }
   global.Skincare = { init, refresh, onShow };
 })(window);
@@ -1564,6 +2039,7 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
 /* ============================
  * finance.js — 记账模块
  * 数据：{ records: [{id,date,type,amount,category,note}] }
+ * 记录日期可选（补记昨天/前天）
  * ============================ */
 (function (global) {
   const KEY = 'finance';
@@ -1590,6 +2066,8 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
   };
   const CAT_MAP = {};
   CATS.out.concat(CATS.in).forEach((c) => { CAT_MAP[c.key] = c; });
+
+  let selDate = Util.today();
 
   function load() {
     let d = Storage.get(KEY);
@@ -1640,6 +2118,10 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     const d = load();
     const s = summary(d);
     const pie = outByCategory(d);
+    const date = selDate;
+    const dayList = d.records.filter((r) => r.date === date);
+    const dayOut = dayList.filter((r) => r.type === 'out').reduce((a, r) => a + r.amount, 0);
+    const dayIn  = dayList.filter((r) => r.type === 'in').reduce((a, r) => a + r.amount, 0);
 
     return `
       <div class="card">
@@ -1652,6 +2134,8 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
           <div class="fs-cell out"><div class="l">支出</div><div class="v">-${s.outTotal.toFixed(0)}</div></div>
           <div class="fs-cell net"><div class="l">结余</div><div class="v">${s.net >= 0 ? '+' : ''}${s.net.toFixed(0)}</div></div>
         </div>
+
+        ${Util.dateBar('finDate', date)}
 
         <div class="type-toggle">
           <button class="active out" data-type="out">支出</button>
@@ -1670,7 +2154,17 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
         <div class="field">
           <input class="input" id="finNote" placeholder="备注(可选)" maxlength="40" />
         </div>
-        <button class="btn btn-finance btn-block" id="finAddBtn">＋ 记一笔</button>
+        <button class="btn btn-finance btn-block" id="finAddBtn">＋ 记到${Util.dateLabel(date)}</button>
+
+        ${dayList.length > 0 ? `
+          <div style="font-size:12px;color:var(--text-2);margin:14px 0 6px">
+            ${Util.dateLabel(date)}的记录
+            <span style="color:var(--text-3)">
+              ${dayIn ? ` · 收 ${dayIn.toFixed(0)}` : ''}${dayOut ? ` · 支 ${dayOut.toFixed(0)}` : ''}
+            </span>
+          </div>
+          ${dayList.map((r) => renderItem(r)).join('')}
+        ` : `<div class="muted" style="margin-top:12px">${Util.dateLabel(date)}还没有记录</div>`}
       </div>
 
       <div class="card">
@@ -1682,7 +2176,7 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
       </div>
 
       <div class="card">
-        <div class="card-title"><h3>${iconHTML('book', 16, '#7A5A48')} 流水明细</h3></div>
+        <div class="card-title"><h3>${iconHTML('book', 16, '#7A5A48')} 流水明细</h3><span class="more">最近 20 天</span></div>
         ${d.records.length === 0
           ? `<div class="empty"><div class="emo">${iconHTML('coin', 32, '#A09A92')}</div>还没有记录，记一笔吧</div>`
           : renderGrouped(d.records)
@@ -1720,8 +2214,8 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     records.forEach((r) => {
       (groups[r.date] = groups[r.date] || []).push(r);
     });
-    return Object.keys(groups).slice(0, 20).map((date) => {
-      const d = new Date(date);
+    return Object.keys(groups).sort().reverse().slice(0, 20).map((date) => {
+      const d = new Date(date + 'T00:00:00');
       const inSum  = (groups[date] || []).filter((r) => r.type === 'in').reduce((s, r) => s + r.amount, 0);
       const outSum = (groups[date] || []).filter((r) => r.type === 'out').reduce((s, r) => s + r.amount, 0);
       return `
@@ -1740,6 +2234,11 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
 
   function bind() {
     const pane = document.getElementById('pane-finance');
+    if (!pane) return;
+
+    // 日期切换
+    Util.bindDateBar(pane, 'finDate', (v) => { selDate = v; refresh(); });
+
     let curType = 'out';
     let curCat  = CATS.out[0].key;
 
@@ -1776,20 +2275,21 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     document.getElementById('finAddBtn').addEventListener('click', () => {
       const amt = document.getElementById('finAmt').value;
       if (!amt || amt <= 0) { Toast('请输入金额'); return; }
-      add({ type: curType, amount: amt, category: curCat, note: document.getElementById('finNote').value });
+      add({ type: curType, amount: amt, category: curCat, note: document.getElementById('finNote').value, date: selDate });
       document.getElementById('finAmt').value = '';
       document.getElementById('finNote').value = '';
-      Toast('已记账'); refresh();
+      Toast(`已记到${Util.dateLabel(selDate)}`); refresh();
     });
 
-    // 删除
-    pane.addEventListener('click', (e) => {
+    // 删除（onclick 覆盖式绑定，避免刷新累积）
+    pane.onclick = (e) => {
       const delBtn = e.target.closest('[data-act="del"]');
       if (!delBtn) return;
       const item = delBtn.closest('[data-id]');
       if (!item) return;
       if (confirm('删除这笔记录？')) { del(item.dataset.id); refresh(); }
-    });
+    };
+
   }
 
   function drawChart() {
@@ -1834,7 +2334,7 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-1); }
     }
     try { drawChart(); } catch (e) { console.error('[finance.js] chart error:', e); }
   }
-  function init() { refresh(); }
+  function init() { selDate = Util.today(); refresh(); }
   function onShow() { drawChart(); }
   global.Finance = { init, refresh, onShow };
 })(window);
